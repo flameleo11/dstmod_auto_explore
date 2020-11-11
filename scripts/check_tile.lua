@@ -102,6 +102,35 @@ function get_around_tile(pos)
   return arr
 end
 
+
+function get_around_tile_x1(pos)
+	local arr = {}
+	local width = this.tile_width
+	local org = convert_to_tile(pos, width)
+
+	-- 4 side cross
+	push(arr, Vector3(org.x,       0, org.z+width))
+	push(arr, Vector3(org.x,       0, org.z-width))
+	push(arr, Vector3(org.x-width, 0, org.z))
+	push(arr, Vector3(org.x+width, 0, org.z))
+
+  return arr
+end
+
+function get_around_tile_x2(pos)
+	local arr = {}
+	local width = this.tile_width
+	local org = convert_to_tile(pos, width)
+
+	-- 4 side cross
+	push(arr, Vector3(org.x-width, 0, org.z-width))
+	push(arr, Vector3(org.x-width, 0, org.z+width))
+	push(arr, Vector3(org.x+width, 0, org.z-width))
+	push(arr, Vector3(org.x+width, 0, org.z+width))
+
+  return arr
+end
+
 function is_passable_tile(pos)
 	local tile = convert_to_tile(pos, this.tile_width)
 
@@ -112,16 +141,23 @@ end
 -- todo check edge & last edge in same line
 function get_tile_passable_type(pos)
 	if not (is_passable_tile(pos)) then
-		return "block", -1
+		return "block", 0
 	end
 
-	local arr = get_around_tile(pos)
+	local arr = get_around_tile_x1
 	for i, v in ipairs(arr) do
 		if not (is_passable_tile(v)) then
-			return "edge", get_level_by_side_id(i)
+			return "edge", 1
 		end
 	end
-  return "blank", 0
+	local arr = get_around_tile_x2
+	for i, v in ipairs(arr) do
+		if not (is_passable_tile(v)) then
+			return "edge", 2
+		end
+	end
+
+  return "blank", 9
 end
 
 -- also passable tile but has tile around
@@ -144,9 +180,9 @@ function get_walkable_tile(pos, filter)
 	local arr = get_around_tile(pos)
 	local arr_blank = {}
 	local arr_blank = {}
-	
+
 	for i, v in ipairs(arr) do
-		local tile_type, level = get_tile_passable_type(v)
+		local tile_type, dist_to_block = get_tile_passable_type(v)
 		if (tile_type == "edge" and filter(v, "edge", i)) then
 			return v, "edge"
 		end
