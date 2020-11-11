@@ -239,7 +239,7 @@ function calc_next_tile()
   -- todo 
   -- 1 check same edge
   -- 2 remove circle in graph
-  local passed_filter = function (v, vtype, i)
+  local passed_filter = function (v, i)
     local passed = is_passed_pos(v);
     return not (passed)
   end

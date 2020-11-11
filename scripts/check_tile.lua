@@ -144,13 +144,13 @@ function get_tile_passable_type(pos)
 		return "block", 0
 	end
 
-	local arr = get_around_tile_x1
+	local arr = get_around_tile_x1(pos)
 	for i, v in ipairs(arr) do
 		if not (is_passable_tile(v)) then
 			return "edge", 1
 		end
 	end
-	local arr = get_around_tile_x2
+	local arr = get_around_tile_x2(pos)
 	for i, v in ipairs(arr) do
 		if not (is_passable_tile(v)) then
 			return "edge", 2
@@ -175,32 +175,44 @@ function is_edge_tile(pos)
 	end
   return false
 end
+
+
 -- todo check edge & last edge in same line
 function get_walkable_tile(pos, filter)
-	local arr = get_around_tile(pos)
+	local arr_around = get_around_tile(pos)
 	local arr_blank = {}
 	local arr_blank = {}
 
-	for i, v in ipairs(arr) do
-		local tile_type, dist_to_block = get_tile_passable_type(v)
-		if (tile_type == "edge" and filter(v, "edge", i)) then
-			return v, "edge"
-		end
-		if (tile_type == "blank") then
-			push(arr_blank, {i, v, tile_type})
-		end
-	end
+	local arr = {}
+	for i, v in ipairs(arr_around) do
+		if (filter(v, i)) then
+			local tile_type, dist_to_block = get_tile_passable_type(v)
+			if (dist_to_block > 0) then
+				v.w1 = dist_to_block
+				v.w2 = i
+				v.type = tile_type
 
-	if (#arr_blank > 0) then
-		for j, params in ipairs(arr_blank) do
-			local i, v, tile_type = unpack(params)
-			if (filter(v, tile_type, i)) then
-				return v, "blank"
+				push(arr, v)
 			end
 		end
-		return nil, "done"
 	end
-  return nil, "blocked"
+
+	if not (#arr > 0) then
+		return nil, "all passed !", -1
+	end
+
+	table.sort(arr, function (a, b)
+		if (a.w1 == b.w1) then
+			return a.w2 < b.w2
+		end
+		return a.w1 < b.w1
+	end)
+
+	local v = arr[1]
+	if (v.type == "block") then
+		return nil, "done", 0
+	end
+	return v, v.type, v.w1
 end
 
 
