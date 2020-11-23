@@ -94,6 +94,19 @@ local CLIENT_SIDE = TheNet:GetIsClient() or (SERVER_SIDE and not TheNet:IsDedica
 
 
 local CFG_TEST_KEY = "U"
+local CFG_STOP_KEYS  = {
+  -- CONTROL_MOVE_UP;
+  -- CONTROL_MOVE_DOWN;
+
+  -- CONTROL_MOVE_LEFT;
+  -- CONTROL_MOVE_RIGHT;
+
+  -- CONTROL_ACTION;
+  -- CONTROL_ATTACK;
+
+  -- CONTROL_PRIMARY;
+  CONTROL_SECONDARY;
+}
 
 ------------------------------------------------------------
 -- tools
@@ -129,14 +142,29 @@ function client_stand()
   SendRPCToServer(RPC.DirectWalking, 0, 1) 
 end
 
+function is_riding()
+  return ThePlayer.replica.rider._isriding:value()
+end
+
+function get_mount()
+  return ThePlayer.replica.rider:GetMount();
+end
+
 ------------------------------------------------------------
 -- func
 ------------------------------------------------------------
+
+function is_rider_stance()
+  return (get_mount() == this.init_mount);
+end
+
 
 function set_auto_explore(enable)
   this.enable = enable
 
   this.last_target_tile = nil;
+  this.init_mount = get_mount();
+
   this.tile_passed      = {}
   this.arr_next_tile    = {}
   this.arr_history      = {}
@@ -144,6 +172,8 @@ function set_auto_explore(enable)
   this.enable_product  = this.enable
   this.enable_cost     = this.enable
   this.cost_count = 0
+  this.idle_count = 0
+
 
   print("[test] set", this.enable)
   return this.enable
@@ -281,8 +311,11 @@ function calc_next_tile()
     this.last_target_tile = next_tile
   else
     this.enable_product = false
-    local info = ("Auto move %s"):format(reason or "")
-    talk_say(info)
+
+    -- todo end reason show when moving over
+    -- add end tile
+    -- local info = ("Auto move %s"):format(reason or "")
+    -- talk_say(info)
 
     print("[test] auto move over", next_tile, reason)
   end
@@ -296,9 +329,9 @@ function goto_next_tile()
 
   local p = ThePlayer
   local t = p.components.talker
-  local x, y, z = p.Transform:GetWorldPosition()
 
-
+  local rider = this.init_mount or p
+  local x, y, z = rider.Transform:GetWorldPosition()
 
   local target = this.arr_next_tile[1]
   if not (target) then
@@ -317,39 +350,53 @@ function goto_next_tile()
     target = this.arr_next_tile[1]
   end
 
-  if (target) then
+  if not (target) then
+    client_stopwalking()
+    print("[test] no more target", #this.arr_next_tile)
+    return 
+  end
+
+  if (is_rider_stance()) then
+    
+    this.idle_count = 0
     this.cost_count = this.cost_count + 1
     local info = ("<自动巡航> 已探索%d步"):format(this.cost_count)
     talk_say(info)
     client_move(target) 
-    -- 123
     if (this.cost_count % 15 == 0) then
       TheCamera:SetHeadingTarget(0-ThePlayer:GetRotation()+180)
     end
   else
-    client_stopwalking()
-    print("[test] no more target", #this.arr_next_tile)
+    if (this.idle_count == 0) then
+      local info = ("<自动巡航> 暂停")
+      talk_say(info)      
+      client_stopwalking() 
+    end
+    this.idle_count = this.idle_count + 1
   end
-  
 end
 
 function checkUserTakeControl()
   local inst = ThePlayer
-  if (IsWalkButtonDown(inst)) then
+  if (is_rider_stance() and IsStopButtonDown(inst)) then
     set_auto_explore(false) 
     local info = ("<自动巡航> 关闭")
     talk_say(info)
+    client_stopwalking()
   end
 end
 
-
-
-function IsWalkButtonDown(inst)
-  if not (inst.components.playercontroller) then
+function IsStopButtonDown(inst)
+  if not IsInGameplay() then return end
+  local pcl = inst.components.playercontroller
+  if not (pcl) then
     print("[error] no playercontroller:", inst)
     return 
   end
-  return inst.components.playercontroller:IsAnyOfControlsPressed(CONTROL_MOVE_UP, CONTROL_MOVE_DOWN, CONTROL_MOVE_LEFT, CONTROL_MOVE_RIGHT)
+  -- return TheInput:IsControlPressed(CONTROL_MOVE_DOWN)
+  -- return pcl:IsAnyOfControlsPressed(CONTROL_MOVE_UP, CONTROL_MOVE_DOWN, CONTROL_MOVE_LEFT, CONTROL_MOVE_RIGHT)
+  local stop_keys = CFG_STOP_KEYS
+  return pcl:IsAnyOfControlsPressed(unpack(stop_keys))
 end
 
 function onUpdate()
@@ -357,12 +404,24 @@ function onUpdate()
     return 
   end
 
+-- 123
+  -- test_rider()
+
   calc_next_tile()
   goto_next_tile()
 
   checkUserTakeControl()
 
 end
+
+function test_rider()
+  local b1 = is_riding()
+  local b2 = get_mount()
+  -- 按下下马键后,会延迟几秒才发现没有坐骑和不是骑乘状态
+  print("[test].....骑乘状态", b1, "坐骑", b2)
+end
+
+
 
 -- result: speed is equal to dist per sceond move
 -- if width interval  is 4, max speed is 10
